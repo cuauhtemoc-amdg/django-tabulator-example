@@ -8,37 +8,138 @@
 {% block header_content %}Tabulator+DRF+Django Sample Design{% endblock %}
 
 {% block content %}
+    <button id="add-row">Add Row</button>
+    <button id="del-row">Del Row</button>
     <div id="my-table"></div>
 {% endblock %}
 
 {% block scripts %}
-    <script>
+<script>
+    // Cell Editor Checker
+    var editCheck = function(cell){
+        //get row data
+        var row = cell.getRow();
+        var data = row.getData();
+        var field = cell.getField();
+
+        // debug
+        console.log(field);
+
+        //This callback is called any time a cell is edited
+        if(field == "first_name" || field == "last_name") {
+            console.log("skip");
+            return true;
+        } else {
+            console.log("check");
+            if(data.first_name && data.last_name) {
+                console.log("enable edit");
+                return true;
+            } else {
+                console.log("disable edit");
+                return false;
+            }
+        }
+    }
+
     //create Tabulator on DOM element with id "example-table"
-$("#my-table").tabulator({
-    height:205, // set height of table (in CSS or here), this enables the Virtual DOM and improves render speed dramatically (can be any valid css height value)
-    layout:"fitColumns", //fit columns to width of table (optional)
-    columns:[ //Define Table Columns
-        {title:"Name", field:"name", width:150},
-        {title:"Age", field:"age", align:"left", formatter:"progress"},
-        {title:"Favourite Color", field:"col"},
-        {title:"Date Of Birth", field:"dob", sorter:"date", align:"center"},
-    ],
-    rowClick:function(e, row){ //trigger an alert message when the row is clicked
-        alert("Row " + row.getData().id + " Clicked!!!!");
-    },
-});
+    $("#my-table").tabulator({
+        layout:"fitColumns", //fit columns to width of table (optional)
+        responsiveLayout:"hide",
+        ajaxURL:"/contacts/api",
+        selectable:true,
+        columns:[ //Define Table Columns
+            {title:"ID", field:"id", sorter:"number"},
+            {title:"Title", field:"title", align:"left", minWidth:60, editor:"input", editable:editCheck},
+            {title:"First", field:"first_name", align:"left", minWidth:60, editor:"input",  validator:"required"},
+            {title:"Last", field:"last_name", align:"left", minWidth:60, editor:"input",  validator:"required"},
+            {title:"Nick", field:"nick_name", align:"left", minWidth:60, editor:"input", editable:editCheck},
+            {title:"Company", field:"company", align:"left", minWidth:60, editor:"input", editable:editCheck},
+            {title:"Email", field:"email", align:"left", minWidth:60, editor:"input", formatter:"link", formatterParams:{urlPrefix:"mailto:"}, editable:editCheck},
+        ],
+        cellEdited:function(cell){
+            var row = cell.getRow();
+            var data = row.getData();
+            var id = data.id;
 
-//define some sample data
-var tabledata = [
-    {id:1, name:"Oli Bob", age:"12", col:"red", dob:"12/08/2017"},
-    {id:2, name:"Mary May", age:"1", col:"blue", dob:"14/05/1982"},
-    {id:3, name:"Christine Lobowski", age:"42", col:"green", dob:"22/05/1982"},
-    {id:4, name:"Brendon Philips", age:"125", col:"orange", dob:"01/08/1980"},
-    {id:5, name:"Margret Marmajuke", age:"16", col:"yellow", dob:"31/01/1999"},
-];
+            // debug
+            console.log(id);
 
-//load sample data into the table
-$("#my-table").tabulator("setData", tabledata);
+            //This callback is called any time a cell is edited
+            if(id) {
+                console.log("update row");
+                console.log(data);
+                // update row
+                return $.ajax({type: "PUT",
+                        url: "/clients/api/" + id + "/",
+                        dataType: "json",
+                        data: data,
+                        success: function(response) {
+                                    row.update(response);
+                                    }
+                        });
+            } else {
+                // add row row
+                if(data.first_name && data.last_name) {
+                    console.log("add row");
+                    console.log(data);
+                    return $.ajax({type: "POST",
+                                   url: "/clients/api/",
+                                   dataType: "json",
+                                   data: data,
+                                   success: function(response) {
+                                       row.update(response);
+                                   }
+                                  });
+                }
+            }
+        },
+        rowDeleted:function(row){
+            // delete row
+            var data = row.getData();
+            var id = data.id;
 
-    </script>
+            // debug
+            console.log("Delete CB");
+            console.log(id);
+
+            if(id) {
+                // update row
+                $.ajax({type: "DELETE",
+                        url: "/clients/api/" + id + "/",
+                        dataType: "json",
+                        data: data
+                        });
+                }
+        },
+        validationFailed:function(cell, value, validators){
+            //cell - cell component for the edited cell
+            //value - the value that failed validation
+            //validatiors - an array of validator objects that failed
+                    console.log("validation failed");
+                    console.log(cell);
+                    console.log(value);
+                    console.log(validators);
+        },
+    });
+
+    //Add row on "Add Row" button click
+    $("#add-row").click(function(){
+        $("#my-table").tabulator("addRow", {});
+    });
+
+    //Delete row on "Delete Row" button click
+    $("#del-row").click(function(){
+        console.log("Delete BTN");
+        var selectedRows = $("#my-table").tabulator("getSelectedRows"); //get array of currently selected row components.
+        console.log(selectedRows);
+        selectedRows.forEach(function (row) {
+            var data = row.getData();
+            var id = data.id;
+            console.log(data);
+            console.log("delete : " +id);
+            $("#my-table").tabulator("deleteRow", row.getIndex());
+        })
+        //
+    });
+</script>
 {% endblock %}
